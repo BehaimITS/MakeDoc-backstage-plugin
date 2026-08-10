@@ -13,6 +13,7 @@ import {
   Box,
   Tooltip,
   Collapse,
+  InputAdornment,
 } from '@material-ui/core';
 
 import {
@@ -21,7 +22,7 @@ import {
   alertApiRef,
 } from '@backstage/core-plugin-api';
 
-
+import HelpOutlineIcon from '@material-ui/icons/HelpOutline';
 
 const STORAGE_KEY =
   'makedoc-execution-form';
@@ -549,7 +550,6 @@ export const ExecutionForm = ({
 
 
 
-
   return (
 
     <Box
@@ -570,54 +570,91 @@ export const ExecutionForm = ({
 
 
 
-      <Tooltip title="The URL of the Git repository containing the MakeDoc source files.">
 
-        <TextField
+      <TextField
 
-          label="Repository URL *"
+        label="Repository URL *"
 
-          fullWidth
+        variant="outlined"
 
-          margin="normal"
+        fullWidth
 
-          value={repoUrl}
+        margin="normal"
 
-          onChange={e =>
-            setRepoUrl(
-              e.target.value,
-            )
-          }
+        value={repoUrl}
 
-        />
+        onChange={e =>
+          setRepoUrl(
+            e.target.value,
+          )
+        }
 
-      </Tooltip>
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="The URL of the private GitHub repository containing the source files.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
+      />
 
 
 
 
-      <Tooltip title="Access token used to authenticate against the Git repository.">
+      <TextField
 
-        <TextField
+        label="Git Access Token *"
 
-          label="Git Access Token *"
+        variant="outlined"
 
-          type="password"
+        type="password"
 
-          fullWidth
+        fullWidth
 
-          margin="normal"
+        margin="normal"
 
-          value={accessToken}
+        value={accessToken}
 
-          onChange={e =>
-            setAccessToken(
-              e.target.value,
-            )
-          }
+        onChange={e =>
+          setAccessToken(
+            e.target.value,
+          )
+        }
 
-        />
+        InputProps={{
 
-      </Tooltip>
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Access token used to authenticate against the Git repository.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
+      />
 
 
 
@@ -625,6 +662,8 @@ export const ExecutionForm = ({
       <TextField
 
         label="Input Subdirectory Path *"
+
+        variant="outlined"
 
         fullWidth
 
@@ -638,6 +677,26 @@ export const ExecutionForm = ({
           )
         }
 
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Input directory path relative to the root of the repository.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
       />
 
 
@@ -646,6 +705,8 @@ export const ExecutionForm = ({
       <TextField
 
         label="Output Target Path *"
+
+        variant="outlined"
 
         fullWidth
 
@@ -659,79 +720,186 @@ export const ExecutionForm = ({
           )
         }
 
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Directory where generated documentation will be written.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
       />
 
-<Box mt={6} mb={0}>
-
-  <Typography variant="subtitle1">
-
-    MakeDoc workspace configuration:
-
-  </Typography>
-
-</Box>
 
 
-<TextField
 
-  label="Workspace"
+      <Box
+        mt={6}
+        mb={0}
+      >
 
-  fullWidth
+        <Typography
+          variant="subtitle1"
+        >
 
-  margin="normal"
+          MakeDoc workspace configuration:
 
-  value={workspace}
+        </Typography>
 
-  onChange={e =>
-    setWorkspace(
-      e.target.value,
-    )
-  }
-
-/>
+      </Box>
 
 
-<TextField
-
-  label="Profile"
-
-  fullWidth
-
-  margin="normal"
-
-  value={profile}
-
-  onChange={e =>
-    setProfile(
-      e.target.value,
-    )
-  }
-
-/>
 
 
-<TextField
+      <TextField
 
-  label="Filter"
+        label="Workspace"
 
-  fullWidth
+        variant="outlined"
 
-  margin="normal"
+        fullWidth
 
-  value={filter}
+        margin="normal"
 
-  onChange={e =>
-    setFilter(
-      e.target.value,
-    )
-  }
+        value={workspace}
 
-/>
+        onChange={e =>
+          setWorkspace(
+            e.target.value,
+          )
+        }
+
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Optional MakeDoc workspace configuration used during documentation generation.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
+      />
 
 
-      <Box mt={6} mb={1}>
 
-        <Typography variant="subtitle1">
+
+      <TextField
+
+        label="Profile"
+
+        variant="outlined"
+
+        fullWidth
+
+        margin="normal"
+
+        value={profile}
+
+        onChange={e =>
+          setProfile(
+            e.target.value,
+          )
+        }
+
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Optional custom MakeDoc profile.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
+      />
+
+
+
+
+      <TextField
+
+        label="Filter"
+
+        variant="outlined"
+
+        fullWidth
+
+        margin="normal"
+
+        value={filter}
+
+        onChange={e =>
+          setFilter(
+            e.target.value,
+          )
+        }
+
+        InputProps={{
+
+          endAdornment: (
+
+            <InputAdornment position="end">
+
+              <Tooltip title="Optional filter.">
+
+                <HelpOutlineIcon
+                  fontSize="small"
+                />
+
+              </Tooltip>
+
+            </InputAdornment>
+
+          ),
+
+        }}
+
+      />
+
+
+
+
+      <Box
+        mt={6}
+        mb={1}
+      >
+
+        <Typography
+          variant="subtitle1"
+        >
 
           TIBCO product configuration:
 
@@ -807,7 +975,9 @@ export const ExecutionForm = ({
 
 
 
-      <Box mt={4}>
+      <Box
+        mt={4}
+      >
 
         <Button
 
@@ -837,5 +1007,4 @@ export const ExecutionForm = ({
     </Box>
 
   );
-
 };

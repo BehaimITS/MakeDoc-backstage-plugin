@@ -1,8 +1,4 @@
 import {
-  Response,
-} from 'express';
-
-import {
   Log,
 } from '@kubernetes/client-node';
 
@@ -17,15 +13,21 @@ import {
 
 
 
+type SSEResponse = {
+  write: (chunk: string) => void;
+};
+
+
+
 const logClients =
-  new Map<string, Set<Response>>();
+  new Map<string, Set<SSEResponse>>();
 
 
 
 
 export function addLogClient(
   jobName: string,
-  response: Response,
+  response: SSEResponse,
 ): void {
 
   if (
@@ -34,7 +36,7 @@ export function addLogClient(
 
     logClients.set(
       jobName,
-      new Set<Response>(),
+      new Set<SSEResponse>(),
     );
 
   }
@@ -50,7 +52,7 @@ export function addLogClient(
 
 export function removeLogClient(
   jobName: string,
-  response: Response,
+  response: SSEResponse,
 ): void {
 
   const clients =
@@ -85,7 +87,6 @@ function publishLog(
   jobName: string,
   message: string,
 ): void {
-
 
   const clients =
     logClients.get(jobName);
@@ -179,13 +180,8 @@ export async function streamMakeDocLogs(
     writable,
 
     {
-
-      follow:
-        true,
-
-      tailLines:
-        100,
-
+      follow: true,
+      tailLines: 100,
     },
 
   );

@@ -1,9 +1,6 @@
-import { Response } from 'express';
-
 import {
   JobStatus,
 } from './types';
-
 
 
 export interface JobEvent {
@@ -16,8 +13,14 @@ export interface JobEvent {
 
 
 
+type SSEResponse = {
+  write: (chunk: string) => void;
+};
+
+
+
 const clients =
-  new Set<Response>();
+  new Set<SSEResponse>();
 
 
 
@@ -27,7 +30,7 @@ let latestEvent:
 
 
 export function addClient(
-  response: Response,
+  response: SSEResponse,
 ): void {
 
   clients.add(
@@ -48,7 +51,7 @@ export function addClient(
 
 
 export function removeClient(
-  response: Response,
+  response: SSEResponse,
 ): void {
 
   clients.delete(
@@ -63,10 +66,8 @@ export function publishJobEvent(
   event: JobEvent,
 ): void {
 
-
   latestEvent =
     event;
-
 
 
   const payload =

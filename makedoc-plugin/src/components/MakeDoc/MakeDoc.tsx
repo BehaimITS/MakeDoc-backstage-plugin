@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useState,
 } from 'react';
@@ -8,8 +8,6 @@ import {
   Header,
   Page,
   Content,
-  ContentHeader,
-  HeaderLabel,
   SupportButton,
 } from '@backstage/core-components';
 
@@ -51,7 +49,7 @@ interface ActiveJobResponse {
 
 
 
-export const MakeDocComponent = () => {
+export const MakeDocPage = () => {
 
 
   const config =

@@ -1,5 +1,5 @@
-import { errorHandler } from '@backstage/backend-common';
 import express from 'express';
+
 import Router from 'express-promise-router';
 import {
   LoggerService,
@@ -34,7 +34,7 @@ export interface RouterOptions {
 
 export async function createRouter(
   options: RouterOptions,
-): Promise<express.Router> {
+): Promise<any> {
 
   const {
     logger,
@@ -381,13 +381,6 @@ export async function createRouter(
 
     },
   );
-
-
-
-  router.use(
-    errorHandler(),
-  );
-
 
   return router;
 }

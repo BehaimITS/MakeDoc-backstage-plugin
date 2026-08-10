@@ -57,7 +57,7 @@ The MakeDoc frontend plugin must be imported and registered as a route.
 Example:
 
 ~~~diff
-+ import { MakeDocPage } from '@internal/plugin-makedoc';
++ import { MakeDocPage } from '@internal/plugin-makedoc-plugin';
 
 ...
 
@@ -108,7 +108,7 @@ The new plugins must be added as workspace dependencies.
 Example:
 
 ~~~diff
-+ "@internal/plugin-makedoc": "workspace:*",
++ "@internal/plugin-makedoc-plugin": "workspace:*",
 ~~~
 
 This allows the frontend package to import the MakeDoc frontend plugin.

@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useRef,
   useState,
@@ -26,9 +26,11 @@ export type JobStatus =
 
 
 
-interface JobStatusProps {
+export interface JobStatusProps {
 
   jobName: string;
+
+  status: JobStatus;
 
   onNewExecution: () => void;
 
@@ -308,10 +310,67 @@ export const JobStatusComponent = ({
     logs,
   ]);
 
+
+
+  const downloadLogs = () => {
+
+    const content =
+      logs.join('\n');
+
+
+    const blob =
+      new Blob(
+        [content],
+        {
+          type: 'text/plain',
+        },
+      );
+
+
+    const url =
+      URL.createObjectURL(
+        blob,
+      );
+
+
+    const link =
+      document.createElement(
+        'a',
+      );
+
+
+    link.href = url;
+    link.download = 'makedoc.log';
+
+
+    document.body.appendChild(
+      link,
+    );
+
+
+    link.click();
+
+
+    document.body.removeChild(
+      link,
+    );
+
+
+    URL.revokeObjectURL(
+      url,
+    );
+
+  };
+
+
+
     const failed =
     status === 'FAILED';
 
 
+  const finished =
+    status === 'COMPLETED' ||
+    status === 'FAILED';
 
   const activeStep =
     failed
@@ -474,32 +533,17 @@ export const JobStatusComponent = ({
 
 
 
-        <Box
-
-          ref={logsContainerRef}
-
-          mt={1}
-
-          style={{
-
-            height:
-              800,
-
-            overflowY:
-              'auto',
-
-            border:
-              '1px solid #ddd',
-
-            borderRadius:
-              4,
-
-            padding:
-              12,
-
-          }}
-
-        >
+<div
+  ref={logsContainerRef}
+  style={{
+    height: 800,
+    overflowY: 'auto',
+    border: '1px solid #ddd',
+    borderRadius: 4,
+    padding: 12,
+    marginTop: 8,
+  }}
+>
 
           {
             logs.length === 0 ? (
@@ -534,8 +578,9 @@ export const JobStatusComponent = ({
             )
 
           }
+        </div>
 
-        </Box>
+
 
 
       </Box>
@@ -545,68 +590,70 @@ export const JobStatusComponent = ({
 
 
       {
-        status === 'COMPLETED' && (
+  finished && (
 
-          <Box mt={3}>
-
-            <Typography
-              color="primary"
-            >
-
-              Documentation generation completed.
-
-            </Typography>
-
-
-            <Button
-              variant="contained"
-              onClick={onNewExecution}
-            >
-
-              Start new job
-
-            </Button>
-
-
-          </Box>
-
-        )
-      }
-
-
-
-
-
+    <Box mt={3}>
 
       {
-        failed && (
+        status === 'COMPLETED' ? (
 
-          <Box mt={3}>
+          <Typography
+            color="primary"
+          >
 
-            <Typography
-              color="error"
-            >
+            Documentation generation completed.
 
-              MakeDoc execution failed.
+          </Typography>
 
-            </Typography>
+        ) : (
 
+          <Typography
+            color="error"
+          >
 
-            <Button
-              variant="contained"
-              onClick={onNewExecution}
-            >
+            MakeDoc execution failed.
 
-              Start new job
-
-            </Button>
-
-
-          </Box>
+          </Typography>
 
         )
       }
 
+
+      <Box mt={2}>
+
+
+        <Button
+          variant="contained"
+          onClick={onNewExecution}
+          style={{
+            marginRight: 8,
+          }}
+        >
+
+          Start new job
+
+        </Button>
+
+        <Button
+          variant="contained"
+          onClick={downloadLogs}
+
+        >
+
+          Download logs
+
+        </Button>
+
+
+
+
+      </Box>
+
+
+    </Box>
+
+  )
+}
 
     </Box>
 

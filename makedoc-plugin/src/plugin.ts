@@ -23,7 +23,7 @@ export const MakedocPluginPage =
       name: 'MakedocPluginPage',
       component: () =>
         import('./components/MakeDoc').then(
-          m => m.MakeDocComponent,
+          m => m.MakeDocPage,
         ),
       mountPoint: rootRouteRef,
     }),
