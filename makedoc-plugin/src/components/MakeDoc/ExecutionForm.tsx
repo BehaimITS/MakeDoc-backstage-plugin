@@ -20,6 +20,7 @@ import {
   useApi,
   configApiRef,
   alertApiRef,
+  fetchApiRef,
 } from '@backstage/core-plugin-api';
 
 import HelpOutlineIcon from '@material-ui/icons/HelpOutline';
@@ -88,7 +89,8 @@ export const ExecutionForm = ({
   const alertApi =
     useApi(alertApiRef);
 
-
+  const fetchApi =
+    useApi(fetchApiRef);
 
   const [repoUrl, setRepoUrl] =
     useState('');
@@ -393,10 +395,10 @@ export const ExecutionForm = ({
     try {
 
 
-      const response =
-        await fetch(
-          `${backendUrl}/api/makedoc/run-job`,
-          {
+    const response =
+      await fetchApi.fetch(
+        `${backendUrl}/api/makedoc/run-job`,
+        {
 
             method:
               'POST',

@@ -14,6 +14,12 @@ import {
   CircularProgress,
 } from '@material-ui/core';
 
+import {
+  useApi,
+  identityApiRef,
+  configApiRef,
+} from '@backstage/core-plugin-api';
+
 
 
 export type JobStatus =
@@ -79,9 +85,11 @@ const steps: {
 
 
 const LoadingStepIcon = () => (
+
   <CircularProgress
-    size={32}
+    size={24}
   />
+
 );
 
 
@@ -91,9 +99,18 @@ export const JobStatusComponent = ({
   onNewExecution,
 }: JobStatusProps) => {
 
+  const config =
+    useApi(configApiRef);
+
+  const identityApi =
+    useApi(identityApiRef);
+
+
 
   const backendUrl =
-    'http://localhost:7007';
+    config.getString(
+      'backend.baseUrl',
+    );
 
 
 
@@ -108,7 +125,7 @@ export const JobStatusComponent = ({
 
 
   const logsContainerRef =
-    useRef<HTMLDivElement>(null);
+    useRef<HTMLDivElement | null>(null);
 
 
 
@@ -163,12 +180,10 @@ export const JobStatusComponent = ({
 
     }
 
-
   }, [
     jobName,
     logStorageKey,
   ]);
-
 
 
 
@@ -186,7 +201,6 @@ export const JobStatusComponent = ({
       JSON.stringify(logs),
     );
 
-
   }, [
     logs,
     logStorageKey,
@@ -194,49 +208,264 @@ export const JobStatusComponent = ({
 
 
 
-
+  /*
+   * Backstage authentication is passed explicitly through
+   * the Authorization header.
+   *
+   * EventSource cannot set custom request headers, so the
+   * SSE connections are implemented with fetch() instead.
+   */
   useEffect(() => {
 
-    const events =
-      new EventSource(
-        `${backendUrl}/api/makedoc/events`,
-      );
+    let cancelled = false;
+
+    let controller:
+      AbortController | undefined;
 
 
-    events.onmessage =
-      event => {
 
-        const data =
-          JSON.parse(
-            event.data,
-          );
+    const connectToEvents = async () => {
+
+      try {
+
+        const credentials =
+          await identityApi.getCredentials();
 
 
-        if (
-          data.jobName !== jobName
-        ) {
+        if (cancelled) {
           return;
         }
 
 
-        setStatus(
-          data.status,
-        );
-
-      };
+        controller =
+          new AbortController();
 
 
-    return () => {
+        const headers:
+          Record<string, string> = {
+            Accept:
+              'text/event-stream',
+          };
 
-      events.close();
+
+        if (
+          credentials.token
+        ) {
+
+          headers.Authorization =
+            `Bearer ${credentials.token}`;
+
+        }
+
+
+        const response =
+          await fetch(
+            `${backendUrl}/api/makedoc/events`,
+            {
+              method: 'GET',
+              headers,
+              signal:
+                controller.signal,
+            },
+          );
+
+
+        if (
+          !response.ok
+        ) {
+
+          throw new Error(
+            `Failed to connect to job events: ${response.status} ${response.statusText}`,
+          );
+
+        }
+
+
+        if (
+          !response.body
+        ) {
+
+          throw new Error(
+            'Job events response has no body',
+          );
+
+        }
+
+
+        const reader =
+          response.body.getReader();
+
+        const decoder =
+          new TextDecoder();
+
+
+        let buffer = '';
+
+
+        while (!cancelled) {
+
+          const {
+            value,
+            done,
+          } =
+            await reader.read();
+
+
+          if (done) {
+            break;
+          }
+
+
+          buffer +=
+            decoder.decode(
+              value,
+              {
+                stream: true,
+              },
+            );
+
+
+          const messages =
+            buffer.split(
+              '\n\n',
+            );
+
+
+          buffer =
+            messages.pop() || '';
+
+
+          for (
+            const message of messages
+          ) {
+
+            if (
+              cancelled
+            ) {
+              return;
+            }
+
+
+            const dataLines =
+              message
+                .split('\n')
+                .filter(
+                  line =>
+                    line.startsWith(
+                      'data:',
+                    ),
+                );
+
+
+            if (
+              dataLines.length === 0
+            ) {
+              continue;
+            }
+
+
+            const data =
+              dataLines
+                .map(
+                  line =>
+                    line
+                      .slice(5)
+                      .trim(),
+                )
+                .join('\n');
+
+
+            if (!data) {
+              continue;
+            }
+
+
+            try {
+
+              const parsed =
+                JSON.parse(
+                  data,
+                );
+
+
+              if (
+                parsed.jobName !==
+                jobName
+              ) {
+                continue;
+              }
+
+
+              setStatus(
+                parsed.status,
+              );
+
+            } catch (
+              error
+            ) {
+
+              console.error(
+                'Failed parsing MakeDoc event:',
+                error,
+              );
+
+            }
+
+          }
+
+        }
+
+      } catch (
+        error
+      ) {
+
+        if (
+          !cancelled
+        ) {
+
+          if (
+            error instanceof DOMException &&
+            error.name === 'AbortError'
+          ) {
+            return;
+          }
+
+
+          console.error(
+            'MakeDoc event stream failed:',
+            error,
+          );
+
+        }
+
+      }
 
     };
 
 
+    connectToEvents();
+
+
+    return () => {
+
+      cancelled = true;
+
+
+      if (
+        controller
+      ) {
+
+        controller.abort();
+
+      }
+
+    };
+
   }, [
+    backendUrl,
+    identityApi,
     jobName,
   ]);
-
 
 
 
@@ -249,45 +478,251 @@ export const JobStatusComponent = ({
     }
 
 
-    const stream =
-      new EventSource(
-        `${backendUrl}/api/makedoc/job-logs/${jobName}`,
-      );
+    let cancelled = false;
+
+    let controller:
+      AbortController | undefined;
 
 
-    stream.addEventListener(
-      'log',
-      event => {
 
-        const message =
-          JSON.parse(
-            event.data,
+    const connectToLogs = async () => {
+
+      try {
+
+        const credentials =
+          await identityApi.getCredentials();
+
+
+        if (cancelled) {
+          return;
+        }
+
+
+        controller =
+          new AbortController();
+
+
+        const headers:
+          Record<string, string> = {
+            Accept:
+              'text/event-stream',
+          };
+
+
+        if (
+          credentials.token
+        ) {
+
+          headers.Authorization =
+            `Bearer ${credentials.token}`;
+
+        }
+
+
+        const response =
+          await fetch(
+            `${backendUrl}/api/makedoc/job-logs/${jobName}`,
+            {
+              method: 'GET',
+              headers,
+              signal:
+                controller.signal,
+            },
           );
 
 
-        setLogs(
-          previous => [
-            ...previous,
-            message,
-          ],
-        );
+        if (
+          !response.ok
+        ) {
 
-      },
-    );
+          throw new Error(
+            `Failed to connect to MakeDoc logs: ${response.status} ${response.statusText}`,
+          );
+
+        }
 
 
-    return () => {
+        if (
+          !response.body
+        ) {
 
-      stream.close();
+          throw new Error(
+            'MakeDoc logs response has no body',
+          );
+
+        }
+
+
+        const reader =
+          response.body.getReader();
+
+        const decoder =
+          new TextDecoder();
+
+
+        let buffer = '';
+
+
+        while (!cancelled) {
+
+          const {
+            value,
+            done,
+          } =
+            await reader.read();
+
+
+          if (done) {
+            break;
+          }
+
+
+          buffer +=
+            decoder.decode(
+              value,
+              {
+                stream: true,
+              },
+            );
+
+
+          const messages =
+            buffer.split(
+              '\n\n',
+            );
+
+
+          buffer =
+            messages.pop() || '';
+
+
+          for (
+            const message of messages
+          ) {
+
+            if (
+              cancelled
+            ) {
+              return;
+            }
+
+
+            const dataLines =
+              message
+                .split('\n')
+                .filter(
+                  line =>
+                    line.startsWith(
+                      'data:',
+                    ),
+                );
+
+
+            if (
+              dataLines.length === 0
+            ) {
+              continue;
+            }
+
+
+            const data =
+              dataLines
+                .map(
+                  line =>
+                    line
+                      .slice(5)
+                      .trim(),
+                )
+                .join('\n');
+
+
+            if (!data) {
+              continue;
+            }
+
+
+            try {
+
+              const parsed =
+                JSON.parse(
+                  data,
+                );
+
+
+              setLogs(
+                previous => [
+                  ...previous,
+                  parsed,
+                ],
+              );
+
+            } catch (
+              error
+            ) {
+
+              console.error(
+                'Failed parsing MakeDoc log:',
+                error,
+              );
+
+            }
+
+          }
+
+        }
+
+      } catch (
+        error
+      ) {
+
+        if (
+          !cancelled
+        ) {
+
+          if (
+            error instanceof DOMException &&
+            error.name === 'AbortError'
+          ) {
+            return;
+          }
+
+
+          console.error(
+            'MakeDoc log stream failed:',
+            error,
+          );
+
+        }
+
+      }
 
     };
 
 
-  }, [
-    status,
-    jobName,
-  ]);
+    connectToLogs();
 
+
+    return () => {
+
+      cancelled = true;
+
+
+      if (
+        controller
+      ) {
+
+        controller.abort();
+
+      }
+
+    };
+
+  }, [
+    backendUrl,
+    identityApi,
+    jobName,
+    status,
+  ]);
 
 
 
@@ -304,7 +739,6 @@ export const JobStatusComponent = ({
 
     container.scrollTop =
       container.scrollHeight;
-
 
   }, [
     logs,
@@ -339,8 +773,12 @@ export const JobStatusComponent = ({
       );
 
 
-    link.href = url;
-    link.download = 'makedoc.log';
+    link.href =
+      url;
+
+
+    link.download =
+      'makedoc.log';
 
 
     document.body.appendChild(
@@ -364,13 +802,16 @@ export const JobStatusComponent = ({
 
 
 
-    const failed =
+  const failed =
     status === 'FAILED';
+
 
 
   const finished =
     status === 'COMPLETED' ||
     status === 'FAILED';
+
+
 
   const activeStep =
     failed
@@ -393,7 +834,6 @@ export const JobStatusComponent = ({
   const running =
     !failed &&
     status !== 'COMPLETED';
-
 
 
 
@@ -532,18 +972,14 @@ export const JobStatusComponent = ({
         </Typography>
 
 
-
-<div
-  ref={logsContainerRef}
-  style={{
-    height: 800,
-    overflowY: 'auto',
-    border: '1px solid #ddd',
-    borderRadius: 4,
-    padding: 12,
-    marginTop: 8,
-  }}
->
+        <Box
+          ref={logsContainerRef}
+          style={{
+            maxHeight: 400,
+            overflowY: 'auto',
+            marginTop: 8,
+          }}
+        >
 
           {
             logs.length === 0 ? (
@@ -578,9 +1014,8 @@ export const JobStatusComponent = ({
             )
 
           }
-        </div>
 
-
+        </Box>
 
 
       </Box>
@@ -590,70 +1025,71 @@ export const JobStatusComponent = ({
 
 
       {
-  finished && (
+        finished && (
 
-    <Box mt={3}>
+          <Box mt={3}>
 
-      {
-        status === 'COMPLETED' ? (
+            {
+              status === 'COMPLETED' ? (
 
-          <Typography
-            color="primary"
-          >
+                <Typography
+                  color="primary"
+                >
 
-            Documentation generation completed.
+                  Documentation generation completed.
 
-          </Typography>
+                </Typography>
 
-        ) : (
+              ) : (
 
-          <Typography
-            color="error"
-          >
+                <Typography
+                  color="error"
+                >
 
-            MakeDoc execution failed.
+                  MakeDoc execution failed.
 
-          </Typography>
+                </Typography>
+
+              )
+            }
+
+
+            <Box mt={2}>
+
+
+              <Button
+                variant="contained"
+                onClick={onNewExecution}
+                style={{
+                  marginRight: 8,
+                }}
+              >
+
+                Start new job
+
+              </Button>
+
+              <Button
+                variant="contained"
+                onClick={downloadLogs}
+
+              >
+
+                Download logs
+
+              </Button>
+
+
+
+
+            </Box>
+
+
+          </Box>
 
         )
       }
 
-
-      <Box mt={2}>
-
-
-        <Button
-          variant="contained"
-          onClick={onNewExecution}
-          style={{
-            marginRight: 8,
-          }}
-        >
-
-          Start new job
-
-        </Button>
-
-        <Button
-          variant="contained"
-          onClick={downloadLogs}
-
-        >
-
-          Download logs
-
-        </Button>
-
-
-
-
-      </Box>
-
-
-    </Box>
-
-  )
-}
 
     </Box>
 

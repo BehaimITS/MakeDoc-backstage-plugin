@@ -3,7 +3,6 @@ import {
   useState,
 } from 'react';
 
-
 import {
   Header,
   Page,
@@ -11,12 +10,11 @@ import {
   SupportButton,
 } from '@backstage/core-components';
 
-
 import {
   useApi,
   configApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
-
 
 import { ExecutionForm } from './ExecutionForm';
 
@@ -51,9 +49,11 @@ interface ActiveJobResponse {
 
 export const MakeDocPage = () => {
 
-
   const config =
     useApi(configApiRef);
+
+  const identityApi =
+    useApi(identityApiRef);
 
 
 
@@ -63,7 +63,7 @@ export const MakeDocPage = () => {
 
 
   const [jobStatus, setJobStatus] =
-    useState<JobStatus>(
+    useState(
       'STARTED',
     );
 
@@ -74,9 +74,7 @@ export const MakeDocPage = () => {
 
 
 
-
   useEffect(() => {
-
 
     const backendUrl =
       config.getString(
@@ -85,13 +83,30 @@ export const MakeDocPage = () => {
 
 
 
+    let cancelled = false;
+
+
+
     async function loadActiveJob() {
 
       try {
 
+        const credentials =
+          await identityApi.getCredentials();
+
+
+
         const response =
           await fetch(
             `${backendUrl}/api/makedoc/active-job`,
+            {
+              headers: credentials.token
+                ? {
+                    Authorization:
+                      `Bearer ${credentials.token}`,
+                  }
+                : {},
+            },
           );
 
 
@@ -138,86 +153,246 @@ export const MakeDocPage = () => {
 
 
 
-
-    const eventSource =
-      new EventSource(
-        `${backendUrl}/api/makedoc/events`,
-      );
+    let abortController:
+      AbortController | undefined;
 
 
 
-    eventSource.onmessage =
-      event => {
+    async function connectToEvents() {
 
-        try {
+      try {
 
-
-          const data =
-            JSON.parse(
-              event.data,
-            ) as JobEvent;
+        const credentials =
+          await identityApi.getCredentials();
 
 
 
-          console.log(
-            'MakeDoc SSE event:',
-            data,
+        abortController =
+          new AbortController();
+
+
+
+        const response =
+          await fetch(
+            `${backendUrl}/api/makedoc/events`,
+            {
+              headers: {
+                Accept:
+                  'text/event-stream',
+
+                ...(credentials.token
+                  ? {
+                      Authorization:
+                        `Bearer ${credentials.token}`,
+                    }
+                  : {}),
+              },
+
+              signal:
+                abortController.signal,
+            },
           );
 
 
 
-          if (
-            data.jobName
-          ) {
+        if (!response.ok) {
 
-            setActiveJob(
-              data.jobName,
-            );
+          throw new Error(
+            `SSE connection failed: ${response.status} ${response.statusText}`,
+          );
+
+        }
 
 
-            setJobStatus(
-              data.status,
-            );
 
+        if (!response.body) {
+
+          throw new Error(
+            'SSE response has no body',
+          );
+
+        }
+
+
+
+        const reader =
+          response.body.getReader();
+
+
+
+        const decoder =
+          new TextDecoder();
+
+
+
+        let buffer = '';
+
+
+
+        while (!cancelled) {
+
+          const {
+            value,
+            done,
+          } =
+            await reader.read();
+
+
+
+          if (done) {
+            break;
           }
 
 
 
-        } catch(error) {
+          buffer +=
+            decoder.decode(
+              value,
+              {
+                stream: true,
+              },
+            );
+
+
+
+          const messages =
+            buffer.split('\n\n');
+
+
+
+          buffer =
+            messages.pop() ?? '';
+
+
+
+          for (
+            const message
+            of messages
+          ) {
+
+            const dataLine =
+              message
+                .split('\n')
+                .find(
+                  line =>
+                    line.startsWith(
+                      'data:',
+                    ),
+                );
+
+
+
+            if (!dataLine) {
+              continue;
+            }
+
+
+
+            const eventData =
+              dataLine
+                .substring(5)
+                .trim();
+
+
+
+            if (!eventData) {
+              continue;
+            }
+
+
+
+            try {
+
+              const data =
+                JSON.parse(
+                  eventData,
+                ) as JobEvent;
+
+
+
+              console.log(
+                'MakeDoc SSE event:',
+                data,
+              );
+
+
+
+              if (
+                data.jobName
+              ) {
+
+                setActiveJob(
+                  data.jobName,
+                );
+
+
+                setJobStatus(
+                  data.status,
+                );
+
+              }
+
+
+
+            } catch(error) {
+
+              console.error(
+                'Failed parsing MakeDoc event',
+                error,
+              );
+
+            }
+
+          }
+
+        }
+
+
+
+      } catch(error) {
+
+        if (
+          !cancelled
+        ) {
 
           console.error(
-            'Failed parsing MakeDoc event',
+            'MakeDoc SSE error',
             error,
           );
 
         }
 
-      };
+      }
+
+    }
 
 
 
-    eventSource.onerror =
-      error => {
-
-        console.error(
-          'MakeDoc SSE error',
-          error,
-        );
-
-      };
+    connectToEvents();
 
 
 
     return () => {
 
-      eventSource.close();
+      cancelled =
+        true;
+
+
+
+      if (
+        abortController
+      ) {
+
+        abortController.abort();
+
+      }
 
     };
 
-
-  }, [config]);
-
-
+  }, [
+    config,
+    identityApi,
+  ]);
 
 
 
@@ -230,8 +405,10 @@ export const MakeDocPage = () => {
       <Content>
 
 
-        <Header title="MakeDoc"
-                subtitle="MakeDoc® provides automatic code review and analysis of TIBCO projects.">
+        <Header
+          title="MakeDoc"
+          subtitle="MakeDoc® provides automatic code review and analysis of TIBCO projects."
+        >
 
 
           <SupportButton>
@@ -294,28 +471,27 @@ export const MakeDocPage = () => {
 
 
         {
-  !loading &&
-  !activeJob && (
+          !loading &&
+          !activeJob && (
 
-    <ExecutionForm
+            <ExecutionForm
 
-      onJobStarted={(jobName: string) => {
+              onJobStarted={(jobName: string) => {
 
-        setActiveJob(
-          jobName,
-        );
+                setActiveJob(
+                  jobName,
+                );
 
-        setJobStatus(
-          'STARTED',
-        );
+                setJobStatus(
+                  'STARTED',
+                );
 
-      }}
+              }}
 
-    />
+            />
 
-  )
-}
-
+          )
+        }
 
       </Content>
 
