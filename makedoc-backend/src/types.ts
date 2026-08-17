@@ -1,3 +1,8 @@
+// defines the shared types used by the MakeDoc backend
+// JobStatus represents the possible states of a MakeDoc execution
+// RunJobRequest defines the data accepted when creating a new MakeDoc job
+// JobStatusResponse contains the current job state and the Kubernetes pod name when available
+
 export type JobStatus =
   | 'STARTED'
   | 'CLONING_REPOSITORY'
@@ -5,7 +10,6 @@ export type JobStatus =
   | 'COMMITTING_DOCUMENTATION'
   | 'COMPLETED'
   | 'FAILED';
-
 
 export interface RunJobRequest {
 
@@ -23,7 +27,6 @@ export interface RunJobRequest {
 
   filter?: string;
 
-
   selections?: {
 
     bw5?: Record<string, boolean>;
@@ -36,7 +39,7 @@ export interface RunJobRequest {
 
 }
 
-
+// contains the current status of a MakeDoc job and its pod when available
 export interface JobStatusResponse {
 
   status: JobStatus;

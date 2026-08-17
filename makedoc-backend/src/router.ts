@@ -1,6 +1,13 @@
+ // provides the HTTP API for starting MakeDoc jobs and monitoring their progress
+ // job status is available through regular HTTP endpoints and a dedicated SSE connection
+ // job logs are streamed through a separate SSE connection and previously collected logs are replayed
+ // the router also provides endpoints for checking the active job and retrieving the latest job
+
+
 import express from 'express';
 
 import Router from 'express-promise-router';
+
 import {
   LoggerService,
 } from '@backstage/backend-plugin-api';
@@ -17,21 +24,23 @@ import {
 import {
   addClient,
   removeClient,
+  getLatestJob,
 } from './job-events';
 
 import {
   addLogClient,
   removeLogClient,
-  streamMakeDocLogs,
+  startMakeDocLogCollection,
 } from './job-logs';
 
-
+// defines the dependencies required to create the router
 export interface RouterOptions {
+
   logger: LoggerService;
+
 }
 
-
-
+// creates the backend API routes used by the MakeDoc plugin
 export async function createRouter(
   options: RouterOptions,
 ): Promise<any> {
@@ -40,19 +49,21 @@ export async function createRouter(
     logger,
   } = options;
 
+  const router =
+    Router();
 
-
-  const router = Router();
-
-
+  // parses incoming request bodies as JSON
   router.use(
     express.json(),
   );
 
-
-
+  // configures CORS headers and handles preflight requests
   router.use(
-    (req, res, next) => {
+    (
+      req,
+      res,
+      next,
+    ) => {
 
       res.setHeader(
         'Access-Control-Allow-Origin',
@@ -69,24 +80,30 @@ export async function createRouter(
         'Content-Type, Authorization',
       );
 
-
       if (
         req.method === 'OPTIONS'
       ) {
-        res.sendStatus(200);
+
+        res.sendStatus(
+          200,
+        );
+
         return;
+
       }
 
-
       next();
+
     },
   );
 
-
-
+  // creates a new MakeDoc Kubernetes Job from the request data
   router.post(
     '/run-job',
-    async (req, res) => {
+    async (
+      req,
+      res,
+    ) => {
 
       try {
 
@@ -94,24 +111,24 @@ export async function createRouter(
           'Creating MakeDoc Kubernetes Job',
         );
 
-
         const result =
           await runJob(
             req.body,
           );
 
-
         logger.info(
           `Created MakeDoc Job: ${result.jobName}`,
         );
 
+        res
+          .status(200)
+          .json(
+            result,
+          );
 
-        res.status(200).json(
-          result,
-        );
-
-
-      } catch (error: any) {
+      } catch (
+        error: any
+      ) {
 
         logger.error(
           `Failed creating MakeDoc Job: ${
@@ -119,23 +136,29 @@ export async function createRouter(
           }`,
         );
 
-
-        if (!res.headersSent) {
+        if (
+          !res.headersSent
+        ) {
 
           const message =
             error?.message ??
             'Unable to create MakeDoc Job';
 
-
           const statusCode =
-            message.startsWith('Invalid')
+            message.startsWith(
+              'Invalid',
+            )
               ? 400
               : 500;
 
+          res
+            .status(statusCode)
+            .json({
 
-          res.status(statusCode).json({
-            error: message,
-          });
+              error:
+                message,
+
+            });
 
         }
 
@@ -144,11 +167,13 @@ export async function createRouter(
     },
   );
 
-
-
+  // opens an SSE connection for receiving job status updates
   router.get(
     '/events',
-    (req, res) => {
+    (
+      req,
+      res,
+    ) => {
 
       res.setHeader(
         'Content-Type',
@@ -157,7 +182,7 @@ export async function createRouter(
 
       res.setHeader(
         'Cache-Control',
-        'no-cache',
+        'no-cache, no-transform',
       );
 
       res.setHeader(
@@ -165,15 +190,19 @@ export async function createRouter(
         'keep-alive',
       );
 
+      // prevents reverse proxies from buffering SSE responses
+      res.setHeader(
+        'X-Accel-Buffering',
+        'no',
+      );
 
       res.flushHeaders();
-
 
       addClient(
         res,
       );
 
-
+      // removes the client when the SSE connection closes
       req.on(
         'close',
         () => {
@@ -188,24 +217,68 @@ export async function createRouter(
     },
   );
 
+  // returns the most recently created job even after it has finished
+  router.get(
+    '/latest-job',
+    (
+      _req,
+      res,
+    ) => {
 
+      try {
 
+        const result =
+          getLatestJob();
+
+        res.json(
+          result,
+        );
+
+      } catch (
+        error: any
+      ) {
+
+        logger.error(
+          `Failed getting latest MakeDoc job: ${
+            error?.message ?? error
+          }`,
+        );
+
+        res
+          .status(500)
+          .json({
+
+            error:
+              error?.message ??
+              'Unable to get latest MakeDoc job',
+
+          });
+
+      }
+
+    },
+  );
+
+  // returns whether a MakeDoc job is currently active
   router.get(
     '/active-job',
-    async (_req, res) => {
+    async (
+      _req,
+      res,
+    ) => {
 
       try {
 
         const result =
           await getActiveJob();
 
-
         res.json(
           result,
         );
 
-
-      } catch (error: any) {
+      } catch (
+        error: any
+      ) {
 
         logger.error(
           `Failed getting active job: ${
@@ -213,28 +286,32 @@ export async function createRouter(
           }`,
         );
 
+        res
+          .status(500)
+          .json({
 
-        res.status(500).json({
-          error:
-            error?.message ??
-            'Unable to get active job',
-        });
+            error:
+              error?.message ??
+              'Unable to get active job',
+
+          });
 
       }
 
     },
   );
 
-
-
+  // returns the current status of a specific job
   router.get(
     '/job-status/:jobName',
-    async (req, res) => {
+    async (
+      req,
+      res,
+    ) => {
 
       const {
         jobName,
       } = req.params;
-
 
       try {
 
@@ -243,13 +320,13 @@ export async function createRouter(
             jobName,
           );
 
-
         res.json(
           result,
         );
 
-
-      } catch (error: any) {
+      } catch (
+        error: any
+      ) {
 
         logger.error(
           `Failed getting job status: ${
@@ -257,57 +334,38 @@ export async function createRouter(
           }`,
         );
 
+        res
+          .status(500)
+          .json({
 
-        res.status(500).json({
-          error:
-            error?.message ??
-            'Unable to get job status',
-        });
+            error:
+              error?.message ??
+              'Unable to get job status',
+
+          });
 
       }
 
     },
   );
 
-
-    router.get(
+  // opens an SSE connection for replaying and receiving job logs
+  router.get(
     '/job-logs/:jobName',
-    async (req, res) => {
+    (
+      req,
+      res,
+    ) => {
 
       const {
         jobName,
       } = req.params;
-
 
       logger.info(
         `Opening log stream for job ${jobName}`,
       );
 
       try {
-
-        const jobStatus =
-          await getJobStatus(
-            jobName,
-          );
-
-          logger.info(
-            `Found pod: ${jobStatus.podName}`,
-          );
-
-        if (
-          !jobStatus.podName
-        ) {
-
-          res.status(404).json({
-            error:
-              'Pod not found',
-          });
-
-          return;
-
-        }
-
-
 
         res.setHeader(
           'Content-Type',
@@ -316,7 +374,7 @@ export async function createRouter(
 
         res.setHeader(
           'Cache-Control',
-          'no-cache',
+          'no-cache, no-transform',
         );
 
         res.setHeader(
@@ -324,18 +382,26 @@ export async function createRouter(
           'keep-alive',
         );
 
+        // prevents reverse proxies from buffering the SSE response
+        res.setHeader(
+          'X-Accel-Buffering',
+          'no',
+        );
 
         res.flushHeaders();
 
+        // keeps the connection active before the first log message arrives
+        res.write(
+          ': connected\n\n',
+        );
 
-
+        // replays stored logs and registers the client for new logs
         addLogClient(
           jobName,
           res,
         );
 
-
-
+        // removes the client when the log connection closes
         req.on(
           'close',
           () => {
@@ -348,32 +414,34 @@ export async function createRouter(
           },
         );
 
-
-
-        await streamMakeDocLogs(
+        // starts collection if the job does not already have a collector
+        startMakeDocLogCollection(
           jobName,
-          jobStatus.podName,
         );
 
-
-
-      } catch (error: any) {
-
+      } catch (
+        error: any
+      ) {
 
         logger.error(
-          `Failed streaming logs: ${
+          `Failed opening logs: ${
             error?.message ?? error
           }`,
         );
 
+        if (
+          !res.headersSent
+        ) {
 
-        if (!res.headersSent) {
+          res
+            .status(500)
+            .json({
 
-          res.status(500).json({
-            error:
-              error?.message ??
-              'Unable to stream logs',
-          });
+              error:
+                error?.message ??
+                'Unable to stream logs',
+
+            });
 
         }
 
@@ -383,4 +451,5 @@ export async function createRouter(
   );
 
   return router;
+
 }

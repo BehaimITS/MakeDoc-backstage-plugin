@@ -1,3 +1,8 @@
+// renders the MakeDoc execution form used to configure and start a documentation generation job
+// the form collects repository credentials, input/output paths, MakeDoc options and product formats
+// form values are persisted in localStorage so they survive page reloads
+// submitting the form sends the configuration to the backend and returns the created Job name
+
 import React, {
   useEffect,
   useState,
@@ -29,14 +34,14 @@ const STORAGE_KEY =
   'makedoc-execution-form';
 
 
-
+// supported MakeDoc products
 type Product =
   | 'bw5'
   | 'bw6'
   | 'ems';
 
 
-
+// supported documentation output formats
 type Format =
   | 'html'
   | 'pdf'
@@ -44,7 +49,7 @@ type Format =
   | 'docx';
 
 
-
+// stores the enabled output formats for one product
 interface FormatSelection {
 
   html: boolean;
@@ -58,7 +63,7 @@ interface FormatSelection {
 }
 
 
-
+// maps each product to its selected formats
 interface ProductFormats {
 
   [key: string]: FormatSelection;
@@ -66,7 +71,7 @@ interface ProductFormats {
 }
 
 
-
+// callback used to notify the parent component that a Kubernetes Job was created
 interface ExecutionFormProps {
 
   onJobStarted: (
@@ -76,7 +81,7 @@ interface ExecutionFormProps {
 }
 
 
-
+// main execution form component
 export const ExecutionForm = ({
   onJobStarted,
 }: ExecutionFormProps) => {
@@ -92,6 +97,8 @@ export const ExecutionForm = ({
   const fetchApi =
     useApi(fetchApiRef);
 
+
+  // stores the repository and MakeDoc configuration entered by the user
   const [repoUrl, setRepoUrl] =
     useState('');
 
@@ -104,16 +111,17 @@ export const ExecutionForm = ({
   const [outputDir, setOutputDir] =
     useState('');
 
-    const [workspace, setWorkspace] =
-      useState('');
+  const [workspace, setWorkspace] =
+    useState('');
 
-    const [profile, setProfile] =
-      useState('');
+  const [profile, setProfile] =
+    useState('');
 
-    const [filter, setFilter] =
-      useState('');
+  const [filter, setFilter] =
+    useState('');
 
 
+  // tracks which MakeDoc products are enabled
   const [products, setProducts] =
     useState<Record<Product, boolean>>({
 
@@ -124,7 +132,7 @@ export const ExecutionForm = ({
     });
 
 
-
+  // tracks the selected output formats for each product
   const [formats, setFormats] =
     useState<ProductFormats>({
 
@@ -151,6 +159,8 @@ export const ExecutionForm = ({
 
     });
 
+
+  // restores the previously entered form configuration from localStorage when the component loads
   useEffect(() => {
 
     const saved =
@@ -170,13 +180,11 @@ export const ExecutionForm = ({
         JSON.parse(saved);
 
 
-
       if (data.repoUrl) {
         setRepoUrl(
           data.repoUrl,
         );
       }
-
 
 
       if (data.inputDir) {
@@ -186,13 +194,11 @@ export const ExecutionForm = ({
       }
 
 
-
       if (data.outputDir) {
         setOutputDir(
           data.outputDir,
         );
       }
-
 
 
       if (data.products) {
@@ -202,12 +208,12 @@ export const ExecutionForm = ({
       }
 
 
-
       if (data.formats) {
         setFormats(
           data.formats,
         );
       }
+
 
       if (data.workspace) {
         setWorkspace(
@@ -242,6 +248,8 @@ export const ExecutionForm = ({
   }, []);
 
 
+  // saves the current non-secret form configuration to localStorage whenever it changes
+  // the Git access token is intentionally excluded so it is not persisted in browser storage
   useEffect(() => {
 
 
@@ -273,19 +281,18 @@ export const ExecutionForm = ({
 
 
   }, [
-  repoUrl,
-  inputDir,
-  outputDir,
-  workspace,
-  profile,
-  filter,
-  products,
-  formats,
-]);
+    repoUrl,
+    inputDir,
+    outputDir,
+    workspace,
+    profile,
+    filter,
+    products,
+    formats,
+  ]);
 
 
-
-
+  // updates the enabled state of a product
   const handleProductChange =
     (product: Product) =>
     (
@@ -306,8 +313,7 @@ export const ExecutionForm = ({
     };
 
 
-
-
+  // updates the selected output format for a specific product
   const handleFormatChange =
     (
       product: Product,
@@ -337,8 +343,7 @@ export const ExecutionForm = ({
     };
 
 
-
-
+  // sends the configured execution request to the MakeDoc backend
   const runPipeline = async () => {
 
 
@@ -348,7 +353,7 @@ export const ExecutionForm = ({
       );
 
 
-
+    // converts the UI state into the request structure expected by the backend
     const payload = {
 
       repoUrl,
@@ -391,14 +396,13 @@ export const ExecutionForm = ({
     };
 
 
-
     try {
 
 
-    const response =
-      await fetchApi.fetch(
-        `${backendUrl}/api/makedoc/run-job`,
-        {
+      const response =
+        await fetchApi.fetch(
+          `${backendUrl}/api/makedoc/run-job`,
+          {
 
             method:
               'POST',
@@ -417,10 +421,8 @@ export const ExecutionForm = ({
         );
 
 
-
       const data =
         await response.json();
-
 
 
       if (!response.ok) {
@@ -434,16 +436,16 @@ export const ExecutionForm = ({
       }
 
 
-
+      // passes the newly created Kubernetes Job name to the parent component
       onJobStarted(
         data.jobName,
       );
 
 
-
     } catch(err: any) {
 
 
+      // displays backend or network errors through the Backstage alert system
       alertApi.post({
 
         message:
@@ -463,8 +465,7 @@ export const ExecutionForm = ({
   };
 
 
-
-
+  // renders the format checkboxes for a product when that product is enabled
   const renderFormatSelectors =
     (product: Product) => (
 
@@ -492,7 +493,6 @@ export const ExecutionForm = ({
             {product.toUpperCase()}:
 
           </Typography>
-
 
 
           <FormGroup row>
@@ -547,11 +547,10 @@ export const ExecutionForm = ({
 
 
       </Collapse>
-
     );
 
 
-
+  // renders the complete MakeDoc execution form
   return (
 
     <Box
@@ -569,8 +568,6 @@ export const ExecutionForm = ({
         MakeDoc Execution
 
       </Typography>
-
-
 
 
       <TextField
@@ -612,8 +609,6 @@ export const ExecutionForm = ({
         }}
 
       />
-
-
 
 
       <TextField
@@ -659,8 +654,6 @@ export const ExecutionForm = ({
       />
 
 
-
-
       <TextField
 
         label="Input Subdirectory Path *"
@@ -700,8 +693,6 @@ export const ExecutionForm = ({
         }}
 
       />
-
-
 
 
       <TextField
@@ -745,8 +736,6 @@ export const ExecutionForm = ({
       />
 
 
-
-
       <Box
         mt={6}
         mb={0}
@@ -761,8 +750,6 @@ export const ExecutionForm = ({
         </Typography>
 
       </Box>
-
-
 
 
       <TextField
@@ -806,8 +793,6 @@ export const ExecutionForm = ({
       />
 
 
-
-
       <TextField
 
         label="Profile"
@@ -847,8 +832,6 @@ export const ExecutionForm = ({
         }}
 
       />
-
-
 
 
       <TextField
@@ -892,8 +875,6 @@ export const ExecutionForm = ({
       />
 
 
-
-
       <Box
         mt={6}
         mb={1}
@@ -908,8 +889,6 @@ export const ExecutionForm = ({
         </Typography>
 
       </Box>
-
-
 
 
       <FormGroup>
@@ -962,7 +941,6 @@ export const ExecutionForm = ({
               />
 
 
-
               {renderFormatSelectors(product)}
 
 
@@ -973,8 +951,6 @@ export const ExecutionForm = ({
         )}
 
       </FormGroup>
-
-
 
 
       <Box

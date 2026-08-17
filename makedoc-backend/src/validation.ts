@@ -1,8 +1,10 @@
+// validates incoming MakeDoc job requests before they are used to create a Kubernetes Job
+// required fields must contain strings, optional fields must have the correct types
+// workspace requires either a profile or filter, and product selections must contain boolean values
+
 import {
   RunJobRequest,
 } from './types';
-
-
 
 export function validateRequest(
   body: RunJobRequest,
@@ -19,8 +21,7 @@ export function validateRequest(
     selections,
   } = body;
 
-
-
+  // validates the repository URL
   if (
     !repoUrl ||
     typeof repoUrl !== 'string'
@@ -32,8 +33,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the Git access token
   if (
     !accessToken ||
     typeof accessToken !== 'string'
@@ -45,8 +45,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the input directory
   if (
     !inputDir ||
     typeof inputDir !== 'string'
@@ -58,8 +57,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the output directory
   if (
     !outputDir ||
     typeof outputDir !== 'string'
@@ -71,8 +69,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the optional workspace value
   if (
     workspace !== undefined &&
     typeof workspace !== 'string'
@@ -84,8 +81,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the optional profile value
   if (
     profile !== undefined &&
     typeof profile !== 'string'
@@ -97,8 +93,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the optional filter value
   if (
     filter !== undefined &&
     typeof filter !== 'string'
@@ -110,8 +105,7 @@ export function validateRequest(
 
   }
 
-
-
+  // requires a profile or filter when a workspace is selected
   if (
     workspace &&
     !profile &&
@@ -124,8 +118,7 @@ export function validateRequest(
 
   }
 
-
-
+  // validates the optional product selections object
   if (selections !== undefined) {
 
     if (
@@ -140,8 +133,7 @@ export function validateRequest(
 
     }
 
-
-
+    // validates selections for each supported product
     (
       [
         'bw5',
@@ -153,8 +145,6 @@ export function validateRequest(
       const productSelections =
         selections[productKey];
 
-
-
       if (
         productSelections === undefined ||
         productSelections === null
@@ -164,8 +154,7 @@ export function validateRequest(
 
       }
 
-
-
+      // ensures each product selection is an object
       if (
         typeof productSelections !== 'object' ||
         Array.isArray(productSelections)
@@ -177,8 +166,7 @@ export function validateRequest(
 
       }
 
-
-
+      // ensures each selected format contains a boolean value
       Object.entries(productSelections)
         .forEach(
           ([format, enabled]) => {

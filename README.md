@@ -18,7 +18,23 @@ At this stage, the goal is to have a working base Developer Hub installation.
 
 ---
 
-### 2. Add custom plugins
+### 2. Set up Kubernetes RBAC
+
+The MakeDoc backend runs MakeDoc documentation generation as Kubernetes Jobs. Before running the backend, the required Kubernetes ServiceAccounts, Roles, and RoleBindings must be created.
+
+Follow the [Kubernetes RBAC setup](makedoc-backend/docs/kubernetes.md) documentation to:
+
+- create the `makedoc-controller` ServiceAccount
+- create the `makedoc-runner` ServiceAccount
+- configure the required Kubernetes Roles and RoleBindings
+- generate the controller kubeconfig
+- configure `MAKEDOC_KUBECONFIG`
+
+The RBAC configuration must be completed before starting the MakeDoc backend.
+
+---
+
+### 3. Add custom plugins
 
 Copy the plugin folders from the plugin repository into the Developer Hub plugins directory:
 
@@ -96,7 +112,6 @@ Example:
 + );
 ~~~
 
-
 ---
 
 #### Package Configuration Changes
@@ -141,3 +156,17 @@ Start the development environment:
 yarn start
 ~~~
 
+---
+
+# Developer Documentation
+
+The following documentation describes the internal implementation of the MakeDoc plugin and is intended for developers working on or extending the plugin.
+
+### Backend Documentation
+
+- [MakeDoc Backend](makedoc-backend/docs/MakeDoc%20Backend.md) - Backend architecture, execution flow, Kubernetes Jobs, API endpoints, status handling, log streaming, and TechDocs integration.
+
+
+### Frontend Documentation
+
+- [MakeDoc Frontend](makedoc-plugin/docs/MakeDoc%20Frontend.md) - Frontend architecture, components, execution form, job status handling, SSE connections, log streaming, and interaction with the MakeDoc backend.
