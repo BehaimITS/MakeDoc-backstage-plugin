@@ -40,9 +40,20 @@ export function getKubeConfig(): k8s.KubeConfig {
   const kc =
     new k8s.KubeConfig();
 
-  kc.loadFromFile(
-    process.env.MAKEDOC_KUBECONFIG,
-  );
+
+  try {
+    if (!process.env.MAKEDOC_KUBECONFIG) {
+      throw new Error('MAKEDOC_KUBECONFIG is not set');
+    }
+
+    kc.loadFromFile(process.env.MAKEDOC_KUBECONFIG);
+  } catch (error) {
+    console.log(
+      `Failed to load Kubernetes config from file, falling back to in-cluster configuration: ${error}`,
+    );
+
+    kc.loadFromCluster();
+  }
 
   console.log(
     'Current context:',
